@@ -5,7 +5,7 @@ import { Info } from "lucide-react";
 import { useVideoEditor } from "@/contexts/VideoEditorContext";
 
 export function VideoPlayer() {
-  const { videoRef, currentTime, setCurrentTime, setDuration, isPlaying, setIsPlaying } = useVideoEditor();
+  const { videoRef, currentTime, setCurrentTime, setDuration, isPlaying, setIsPlaying, videoUrl } = useVideoEditor();
 
   const formatTime = (timeInSeconds: number) => {
     if (isNaN(timeInSeconds)) timeInSeconds = 0;
@@ -26,7 +26,7 @@ export function VideoPlayer() {
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center border border-gray-100 shadow-sm">
       <video 
         ref={videoRef}
-        src={process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4"}
+        src={videoUrl || undefined}
         className="w-full h-full object-contain"
         controls={false}
         preload="metadata"

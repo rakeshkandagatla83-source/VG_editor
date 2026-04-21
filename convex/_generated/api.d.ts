@@ -11,6 +11,7 @@
 import type * as clips from "../clips.js";
 import type * as segments from "../segments.js";
 import type * as transcript from "../transcript.js";
+import type * as videos from "../videos.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   clips: typeof clips;
   segments: typeof segments;
   transcript: typeof transcript;
+  videos: typeof videos;
 }>;
 
 /**

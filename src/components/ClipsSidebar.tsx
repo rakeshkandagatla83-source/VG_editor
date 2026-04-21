@@ -23,7 +23,7 @@ function useClipExport() {
   const stopRef = useRef(false);
 
   const exportClip = useCallback(async (
-    clipId: string, startTime: number, endTime: number, title: string
+    clipId: string, startTime: number, endTime: number, title: string, videoUrl: string
   ) => {
     if (exportingId) return;
     setExportingId(clipId);
@@ -65,7 +65,7 @@ function useClipExport() {
     const duration = endTime - startTime;
     await new Promise<void>((resolve) => {
       const video = document.createElement("video");
-      video.src = process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4"; video.muted = true; video.crossOrigin = "anonymous"; video.preload = "auto";
+      video.src = videoUrl; video.muted = true; video.crossOrigin = "anonymous"; video.preload = "auto";
       video.addEventListener("canplay", () => { video.currentTime = startTime; }, { once: true });
       video.addEventListener("seeked", () => {
         // @ts-ignore
@@ -92,7 +92,7 @@ function useClipExport() {
       }, { once: true });
       video.load();
     });
-  }, [exportingId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { exportClip, exportingId, progress };
 }
@@ -155,7 +155,7 @@ export function ClipsSidebar() {
   const saveTranscript     = useMutation(api.transcript.saveTranscript);
   const clearTranscript    = useMutation(api.transcript.clearTranscript);
 
-  const { seekTo, setMarkIn, setMarkOut, videoRef, duration } = useVideoEditor();
+  const { seekTo, setMarkIn, setMarkOut, videoRef, duration, videoUrl } = useVideoEditor();
   const { exportClip, exportingId, progress } = useClipExport();
 
   const [activeTab, setActiveTab]   = useState<"clips" | "transcript">("clips");
@@ -309,7 +309,7 @@ export function ClipsSidebar() {
                     </div>
                     <div className="text-[10px] text-gray-400 font-mono">{formatTime(clip.startTime)} → {formatTime(clip.endTime)}</div>
                     <button
-                      onClick={e => { e.stopPropagation(); exportClip(clip._id, clip.startTime, clip.endTime, clip.title); }}
+                      onClick={e => { e.stopPropagation(); exportClip(clip._id, clip.startTime, clip.endTime, clip.title, videoUrl); }}
                       disabled={!!exportingId}
                       className={`mt-1 flex items-center space-x-1 text-[11px] font-medium rounded px-2 py-0.5 w-fit transition-all
                         ${isExporting ? "bg-indigo-100 text-indigo-600 cursor-wait" : "bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40"}`}

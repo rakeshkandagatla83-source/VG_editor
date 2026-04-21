@@ -22,7 +22,7 @@ function formatTimecodeMs(secs: number): string {
 }
 
 export function TimelineScrubber() {
-  const { currentTime, duration, seekTo, markIn, markOut, segments, setMarkIn, setMarkOut } = useVideoEditor();
+  const { currentTime, duration, seekTo, markIn, markOut, segments, setMarkIn, setMarkOut, videoUrl } = useVideoEditor();
   const [thumbnails, setThumbnails]         = useState<string[]>([]);
   const [zoomLevel, setZoomLevel]           = useState(1);
   const [viewStart, setViewStart]           = useState(0);
@@ -204,7 +204,7 @@ export function TimelineScrubber() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="w-full flex flex-col mt-3 select-none">
-      <video ref={thumbVideoRef} src={process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4"} className="hidden" muted preload="auto" crossOrigin="anonymous" />
+      <video ref={thumbVideoRef} src={videoUrl || undefined} className="hidden" muted preload="auto" crossOrigin="anonymous" />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* ── Scroll container ──────────────────────────────────────── */}
