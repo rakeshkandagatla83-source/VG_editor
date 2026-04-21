@@ -221,6 +221,19 @@ function VideoCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
 
   // Extract first-frame thumbnail
   useEffect(() => {
@@ -245,11 +258,11 @@ function VideoCard({
 
   return (
     <div
-      className="group relative bg-[#111827] border border-gray-700/60 rounded-2xl overflow-hidden cursor-pointer hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-200"
+      className="group relative bg-[#111827] border border-gray-700/60 rounded-2xl cursor-pointer hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-200"
       onClick={onOpen}
     >
       {/* Thumbnail */}
-      <div className="aspect-video bg-[#0d1526] relative overflow-hidden">
+      <div className="aspect-video bg-[#0d1526] relative overflow-hidden rounded-t-2xl">
         {thumbUrl ? (
           <img src={thumbUrl} alt={video.name} className="w-full h-full object-cover" />
         ) : (
@@ -291,7 +304,7 @@ function VideoCard({
             </div>
           </div>
           {/* Menu */}
-          <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div ref={menuRef} className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
@@ -299,7 +312,7 @@ function VideoCard({
               <MoreVertical className="w-4 h-4" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-8 w-36 bg-[#1f2937] border border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden">
+              <div className="absolute right-0 top-8 w-36 bg-[#1f2937] border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
                 <button
                   onClick={() => { setMenuOpen(false); onOpen(); }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"

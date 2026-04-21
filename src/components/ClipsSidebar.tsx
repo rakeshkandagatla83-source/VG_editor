@@ -167,8 +167,9 @@ export function ClipsSidebar() {
   const currentTime = videoRef.current?.currentTime ?? 0;
   useEffect(() => {
     if (activeTab !== "transcript" || !transcriptSegments) return;
+    type ActiveSegDoc = NonNullable<typeof transcriptSegments>[number];
     const active = transcriptSegments.find(
-      s => currentTime >= s.start && currentTime <= s.end
+      (s: ActiveSegDoc) => currentTime >= s.start && currentTime <= s.end
     );
     if (active) setActiveSegmentId(active._id);
   }, [currentTime, transcriptSegments, activeTab]);
@@ -200,7 +201,8 @@ export function ClipsSidebar() {
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredTranscript = (transcriptSegments ?? []).filter(s =>
+  type TSegDoc = NonNullable<typeof transcriptSegments>[number];
+  const filteredTranscript = (transcriptSegments ?? []).filter((s: TSegDoc) =>
     s.text.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -382,7 +384,7 @@ export function ClipsSidebar() {
               </div>
             )}
 
-            {!generating && filteredTranscript.map((seg) => {
+            {!generating && filteredTranscript.map((seg: TSegDoc) => {
               const isActive = activeSegmentId === seg._id;
               return (
                 <div
@@ -404,7 +406,7 @@ export function ClipsSidebar() {
                   </div>
                   <p className={`text-xs leading-relaxed ${isActive ? "text-gray-900 font-medium" : "text-gray-700"}`}>
                     {searchQuery
-                      ? seg.text.split(new RegExp(`(${searchQuery})`, "gi")).map((part, i) =>
+                      ? seg.text.split(new RegExp(`(${searchQuery})`, "gi")).map((part: string, i: number) =>
                           part.toLowerCase() === searchQuery.toLowerCase()
                             ? <mark key={i} className="bg-yellow-200 text-gray-900 rounded px-0.5">{part}</mark>
                             : part

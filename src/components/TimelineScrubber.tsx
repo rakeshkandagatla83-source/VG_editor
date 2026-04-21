@@ -35,7 +35,7 @@ export function TimelineScrubber() {
   const scrollRef     = useRef<HTMLDivElement>(null);
   const scaledRef     = useRef<HTMLDivElement>(null);
 
-  const NUM_THUMBNAILS = 20;
+  const NUM_THUMBNAILS = 60;
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const maxZoom      = duration > 0 ? Math.max(1, Math.floor(duration / Math.min(60, duration))) : 1;
@@ -263,26 +263,28 @@ export function TimelineScrubber() {
             style={{ height: `${STRIP_HEIGHT}px` }}
             onMouseDown={handleMouseDown}
           >
-            {/* Frames — fixed 120px-wide cells, mapped to nearest pre-extracted thumbnail */}
+            {/* Frames — 8 thumbnails per ruler interval, density auto-adapts to zoom */}
             <div className="absolute inset-0 rounded-lg overflow-hidden">
               {(() => {
-                const el = scrollRef.current;
-                const containerW = el ? el.clientWidth : 800;
-                const totalW = containerW * zoomLevel;
-                const CELL_W = 120; // fixed pixel width per thumbnail cell
-                const cellCount = Math.max(NUM_THUMBNAILS, Math.ceil(totalW / CELL_W));
+                // Total cells = 8 cells per major ruler interval across full video.
+                // This means between every two consecutive time markers the user always
+                // sees exactly 8 thumbnail frames, regardless of zoom level.
+                const THUMBS_PER_INTERVAL = 8;
+                const cellCount = (duration > 0 && markerInterval > 0)
+                  ? Math.max(THUMBS_PER_INTERVAL, Math.round((duration / markerInterval) * THUMBS_PER_INTERVAL))
+                  : NUM_THUMBNAILS;
                 const cellWidthPct = 100 / cellCount;
                 return Array.from({ length: cellCount }).map((_, i) => {
-                  // Map this cell to the nearest pre-extracted thumbnail
-                  const cellTime = (i / cellCount) * duration;
+                  // Map each cell to the nearest pre-extracted frame by time position
+                  const cellTimeFraction = i / cellCount;
                   const thumbIdx = Math.min(
                     NUM_THUMBNAILS - 1,
-                    Math.round((cellTime / duration) * NUM_THUMBNAILS)
+                    Math.round(cellTimeFraction * (NUM_THUMBNAILS - 1))
                   );
                   return (
                     <div
                       key={i}
-                      className="absolute top-0 bottom-0 border-r border-[#2d3f55] overflow-hidden pointer-events-none"
+                      className="absolute top-0 bottom-0 border-r border-[#2d3f55]/50 overflow-hidden pointer-events-none"
                       style={{ left: `${i * cellWidthPct}%`, width: `${cellWidthPct}%` }}
                     >
                       {thumbnails[thumbIdx]
