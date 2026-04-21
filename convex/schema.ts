@@ -4,12 +4,13 @@ import { v } from "convex/values";
 export default defineSchema({
   // ── Media Library ─────────────────────────────────────
   videos: defineTable({
-    name: v.string(),
-    storageId: v.optional(v.id("_storage")),  // for Convex-stored uploads
-    url: v.optional(v.string()),               // for externally hosted videos (e.g. Vercel Blob)
-    size: v.optional(v.number()),              // bytes
-    duration: v.optional(v.number()),          // seconds
-    createdAt: v.number(),
+    name: v.optional(v.string()),          // new field (old docs had 'title' instead)
+    title: v.optional(v.string()),         // legacy field from old schema
+    storageId: v.optional(v.id("_storage")),
+    url: v.optional(v.string()),
+    size: v.optional(v.number()),
+    duration: v.optional(v.number()),
+    createdAt: v.optional(v.number()),     // optional so old docs still validate
   }),
 
   // ── Editor clips (generated from mark-in/out) ─────────
@@ -19,6 +20,9 @@ export default defineSchema({
     endTime: v.number(),
     thumbnail: v.optional(v.string()),
     status: v.optional(v.string()),
+    // legacy fields — kept optional for backward compatibility with existing documents
+    createdAt: v.optional(v.number()),
+    videoId: v.optional(v.string()),
   }),
 
   // ── Transcript segments ────────────────────────────────

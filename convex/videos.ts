@@ -9,6 +9,7 @@ export const listVideos = query({
     return await Promise.all(
       videos.map(async (video) => ({
         ...video,
+        name: video.name ?? (video as any).title ?? "Untitled",
         playUrl: video.storageId
           ? await ctx.storage.getUrl(video.storageId)
           : video.url ?? null,
