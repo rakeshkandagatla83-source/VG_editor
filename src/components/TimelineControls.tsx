@@ -12,7 +12,7 @@ export function TimelineControls() {
     isPlaying, togglePlayPause, seekBy, seekTo, duration, 
     playbackRate, setPlaybackRate, volume, setVolume, currentTime,
     markIn, setMarkIn, markOut, setMarkOut, videoRef,
-    segments, addSegment, removeSegment, clearSegments,
+    segments, addSegment, removeSegment, clearSegments, videoId,
   } = useVideoEditor();
 
   const captureFrame = (): string => {
@@ -27,11 +27,13 @@ export function TimelineControls() {
   };
 
   const handleCreateClip = async () => {
+    if (!videoId) return; // no video context, skip
     const thumbnail = captureFrame();
     if (segments.length > 0) {
       const earliestStart = Math.min(...segments.map(s => s.start));
       const latestEnd = Math.max(...segments.map(s => s.end));
       await addClip({
+        videoId,
         title: `Multi-Segment Clip (${segments.length}) - ${new Date().toLocaleTimeString()}`,
         startTime: earliestStart,
         endTime: latestEnd,
@@ -40,6 +42,7 @@ export function TimelineControls() {
       clearSegments();
     } else {
       await addClip({
+        videoId,
         title: `Clip ${new Date().toLocaleTimeString()}`,
         startTime: markIn ?? 0,
         endTime: markOut ?? duration,

@@ -364,8 +364,9 @@ export default function MediaLibraryPage() {
     }
   }, []);
 
-  const filtered = (videos ?? []).filter((v) =>
-    v.name.toLowerCase().includes(search.toLowerCase())
+  type VideoItem = NonNullable<typeof videos>[number];
+  const filtered = (videos ?? []).filter((v: VideoItem) =>
+    (v.name ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -496,7 +497,7 @@ export default function MediaLibraryPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map((video) => (
+              {filtered.map((video: VideoItem) => (
                 <VideoCard
                   key={video._id}
                   video={video}

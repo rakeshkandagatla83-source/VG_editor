@@ -52,11 +52,12 @@ interface VideoEditorContextType {
   startSegmentPreview: () => void;
   stopSegmentPreview: () => void;
   videoUrl: string;
+  videoId: string | undefined;
 }
 
 const VideoEditorContext = createContext<VideoEditorContextType | undefined>(undefined);
 
-export function VideoEditorProvider({ children, videoUrl }: { children: ReactNode; videoUrl?: string }) {
+export function VideoEditorProvider({ children, videoUrl, videoId }: { children: ReactNode; videoUrl?: string; videoId?: string }) {
   const resolvedVideoUrl = videoUrl ?? process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4";
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -297,6 +298,7 @@ export function VideoEditorProvider({ children, videoUrl }: { children: ReactNod
         startSegmentPreview,
         stopSegmentPreview,
         videoUrl: resolvedVideoUrl,
+        videoId,
       }}
     >
       {children}

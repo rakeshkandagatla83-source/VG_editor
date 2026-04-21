@@ -23,7 +23,7 @@ export default defineSchema({
     // legacy fields — kept optional for backward compatibility with existing documents
     createdAt: v.optional(v.number()),
     videoId: v.optional(v.string()),
-  }),
+  }).index("by_video", ["videoId"]),
 
   // ── Transcript segments ────────────────────────────────
   transcriptSegments: defineTable({

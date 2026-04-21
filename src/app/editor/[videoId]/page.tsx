@@ -175,7 +175,7 @@ export default function EditorPage() {
         {/* Editor Workspace */}
         <div className="flex-1 flex overflow-hidden bg-gray-50 min-h-0">
           {activeTab === "Video Clips" ? (
-            <VideoEditorProvider videoUrl={videoUrl}>
+            <VideoEditorProvider videoUrl={videoUrl} videoId={videoId}>
               <div className="flex-1 flex flex-col p-4 w-full h-full min-h-0 border-r border-gray-200">
                 <div className="flex-1 min-h-0 w-full flex items-center justify-center bg-transparent relative rounded-lg overflow-hidden">
                   <div className="absolute inset-0">

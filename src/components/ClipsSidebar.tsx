@@ -147,16 +147,15 @@ function generateMockTranscript(duration: number) {
 const VIDEO_ID = "master";   // fixed key since video is local
 
 export function ClipsSidebar() {
-  const convexClips = useQuery(api.clips.getClips, {});
+  const { seekTo, setMarkIn, setMarkOut, videoRef, duration, videoUrl, videoId } = useVideoEditor();
+  const convexClips = useQuery(api.clips.getClips, { videoId: videoId ?? undefined });
   type ClipDoc = NonNullable<typeof convexClips>[number];
   const clips: ClipDoc[] = convexClips ?? [];
+  const { exportClip, exportingId, progress } = useClipExport();
 
-  const transcriptSegments = useQuery(api.transcript.getTranscript, { videoId: VIDEO_ID });
+  const transcriptSegments = useQuery(api.transcript.getTranscript, { videoId: videoId ?? "none" });
   const saveTranscript     = useMutation(api.transcript.saveTranscript);
   const clearTranscript    = useMutation(api.transcript.clearTranscript);
-
-  const { seekTo, setMarkIn, setMarkOut, videoRef, duration, videoUrl } = useVideoEditor();
-  const { exportClip, exportingId, progress } = useClipExport();
 
   const [activeTab, setActiveTab]   = useState<"clips" | "transcript">("clips");
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
