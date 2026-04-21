@@ -243,16 +243,23 @@ function VideoCard({
     vid.muted = true;
     vid.preload = "metadata";
     vid.src = video.playUrl;
-    vid.addEventListener("loadedmetadata", () => { vid.currentTime = 2; }, { once: true });
+    vid.addEventListener("loadedmetadata", () => { vid.currentTime = 0.1; }, { once: true });
     vid.addEventListener("seeked", () => {
       const canvas = document.createElement("canvas");
       canvas.width = 320; canvas.height = 180;
       const ctx = canvas.getContext("2d");
       if (ctx) {
-        ctx.drawImage(vid, 0, 0, 320, 180);
-        setThumbUrl(canvas.toDataURL("image/jpeg", 0.7));
+        try {
+          ctx.drawImage(vid, 0, 0, 320, 180);
+          setThumbUrl(canvas.toDataURL("image/jpeg", 0.6));
+        } catch (e) {
+          console.warn("VideoCard thumbnail failed (CORS):", e);
+        }
       }
     }, { once: true });
+    vid.addEventListener("error", (e) => {
+      console.error("VideoCard loading error:", video.playUrl, vid.error);
+    });
     vid.load();
   }, [video.playUrl]);
 

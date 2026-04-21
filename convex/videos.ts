@@ -6,7 +6,7 @@ export const listVideos = query({
   args: {},
   handler: async (ctx) => {
     const videos = await ctx.db.query("videos").order("desc").collect();
-    return await Promise.all(
+    const results = await Promise.all(
       videos.map(async (video) => ({
         ...video,
         name: video.name ?? (video as any).title ?? "Untitled",
@@ -15,6 +15,8 @@ export const listVideos = query({
           : video.url ?? null,
       }))
     );
+    // Only return videos that have a playable URL
+    return results.filter((v) => v.playUrl);
   },
 });
 
@@ -91,5 +93,16 @@ export const updateDuration = mutation({
   args: { id: v.id("videos"), duration: v.number() },
   handler: async (ctx, { id, duration }) => {
     await ctx.db.patch(id, { duration });
+  },
+});
+
+// ── Remove legacy/broken video records with no playable URL ──────────────────
+export const deleteBrokenVideos = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("videos").collect();
+    const broken = all.filter((v) => !v.storageId && !v.url && !(v as any).title);
+    await Promise.all(broken.map((v) => ctx.db.delete(v._id)));
+    return broken.length;
   },
 });
