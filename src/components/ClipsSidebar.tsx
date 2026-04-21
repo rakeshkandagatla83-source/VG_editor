@@ -65,7 +65,7 @@ function useClipExport() {
     const duration = endTime - startTime;
     await new Promise<void>((resolve) => {
       const video = document.createElement("video");
-      video.src = "/master.mp4"; video.muted = true; video.crossOrigin = "anonymous"; video.preload = "auto";
+      video.src = process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4"; video.muted = true; video.crossOrigin = "anonymous"; video.preload = "auto";
       video.addEventListener("canplay", () => { video.currentTime = startTime; }, { once: true });
       video.addEventListener("seeked", () => {
         // @ts-ignore

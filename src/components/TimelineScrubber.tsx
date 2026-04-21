@@ -204,7 +204,7 @@ export function TimelineScrubber() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="w-full flex flex-col mt-3 select-none">
-      <video ref={thumbVideoRef} src="/master.mp4" className="hidden" muted preload="auto" crossOrigin="anonymous" />
+      <video ref={thumbVideoRef} src={process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4"} className="hidden" muted preload="auto" crossOrigin="anonymous" />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* ── Scroll container ──────────────────────────────────────── */}

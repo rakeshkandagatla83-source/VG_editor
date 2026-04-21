@@ -26,7 +26,7 @@ export function VideoPlayer() {
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center border border-gray-100 shadow-sm">
       <video 
         ref={videoRef}
-        src="/master.mp4"
+        src={process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4"}
         className="w-full h-full object-contain"
         controls={false}
         preload="metadata"
