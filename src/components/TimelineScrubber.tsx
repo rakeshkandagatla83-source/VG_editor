@@ -263,16 +263,22 @@ export function TimelineScrubber() {
             style={{ height: `${STRIP_HEIGHT}px` }}
             onMouseDown={handleMouseDown}
           >
-            {/* Frames — 8 thumbnails per ruler interval, density auto-adapts to zoom */}
+            {/* Frames — 8 thumbnails per ruler interval, min 80px wide so they look landscape */}
             <div className="absolute inset-0 rounded-lg overflow-hidden">
               {(() => {
-                // Total cells = 8 cells per major ruler interval across full video.
-                // This means between every two consecutive time markers the user always
-                // sees exactly 8 thumbnail frames, regardless of zoom level.
                 const THUMBS_PER_INTERVAL = 8;
-                const cellCount = (duration > 0 && markerInterval > 0)
+                const MIN_CELL_PX = 80; // narrower than this looks like vertical slices
+
+                // How many cells the interval rule wants
+                const cellCountIdeal = (duration > 0 && markerInterval > 0)
                   ? Math.max(THUMBS_PER_INTERVAL, Math.round((duration / markerInterval) * THUMBS_PER_INTERVAL))
                   : NUM_THUMBNAILS;
+
+                // Cap so cells are never narrower than MIN_CELL_PX
+                const totalW = (scrollRef.current?.clientWidth ?? 800) * zoomLevel;
+                const maxCells = Math.max(THUMBS_PER_INTERVAL, Math.floor(totalW / MIN_CELL_PX));
+                const cellCount = Math.min(cellCountIdeal, maxCells);
+
                 const cellWidthPct = 100 / cellCount;
                 return Array.from({ length: cellCount }).map((_, i) => {
                   // Map each cell to the nearest pre-extracted frame by time position
