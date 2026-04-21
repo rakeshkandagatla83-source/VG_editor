@@ -160,13 +160,21 @@ export function TimelineScrubber() {
     return () => { video.removeEventListener("loadedmetadata", start); video.removeEventListener("seeked", capture); };
   }, []);
 
-  // ── Dynamic time markers ──────────────────────────────────────────────────
-  const NUM_MARKERS = 7;
-  const timeMarkers = Array.from({ length: NUM_MARKERS }, (_, i) => {
-    const t   = viewStart + (i / (NUM_MARKERS - 1)) * viewDuration;
-    const pct = fullPct(Math.min(t, duration));
-    return { pct, label: formatTimecode(Math.min(t, duration)) };
-  });
+  // ── Adaptive time markers ─────────────────────────────────────────────────
+  const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+  const rawInterval = viewDuration > 0 ? viewDuration / 12 : 10; // aim for ~12 markers
+  const markerInterval = niceIntervals.find(n => n >= rawInterval) ?? 600;
+  const timeMarkers: { pct: number; label: string; isMajor: boolean }[] = [];
+  if (duration > 0 && viewDuration > 0) {
+    // Major markers at markerInterval, minor ticks at markerInterval/5 (or /2)
+    const minorInterval = markerInterval >= 10 ? markerInterval / 5 : markerInterval / 2;
+    const firstTick = Math.floor(viewStart / minorInterval) * minorInterval;
+    for (let t = firstTick; t <= viewEnd + minorInterval; t += minorInterval) {
+      if (t < 0 || t > duration) continue;
+      const isMajor = Math.abs(t % markerInterval) < 0.001 || Math.abs(t % markerInterval - markerInterval) < 0.001;
+      timeMarkers.push({ pct: fullPct(t), label: formatTimecode(t), isMajor });
+    }
+  }
 
   // ── Minimap ───────────────────────────────────────────────────────────────
   const minimapRef = useRef<HTMLDivElement>(null);
@@ -209,18 +217,20 @@ export function TimelineScrubber() {
 
           {/* ── Time Ruler ──────────────────────────────────────────── */}
           <div className="relative w-full h-6 mb-0.5">
-            {/* Regular timecodes */}
-            {timeMarkers.map(({ pct, label }, i) => (
+            {/* Adaptive time markers — major ticks with labels, minor ticks without */}
+            {timeMarkers.map(({ pct, label, isMajor }, i) => (
               <div
                 key={i}
                 className="absolute flex flex-col items-center pointer-events-none"
-                style={{
-                  left: `${pct}%`,
-                  transform: i === 0 ? "translateX(0)" : i === NUM_MARKERS - 1 ? "translateX(-100%)" : "translateX(-50%)",
-                }}
+                style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
               >
-                <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap leading-none">{label}</span>
-                <div className="w-px h-2 bg-gray-300 mt-0.5" />
+                {isMajor && (
+                  <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap leading-none">{label}</span>
+                )}
+                <div
+                  className={`w-px ${isMajor ? 'h-2.5 bg-gray-300' : 'h-1.5 bg-gray-200'}`}
+                  style={{ marginTop: isMajor ? '1px' : '11px' }}
+                />
               </div>
             ))}
 
@@ -253,19 +263,35 @@ export function TimelineScrubber() {
             style={{ height: `${STRIP_HEIGHT}px` }}
             onMouseDown={handleMouseDown}
           >
-            {/* Frames */}
+            {/* Frames — fixed 120px-wide cells, mapped to nearest pre-extracted thumbnail */}
             <div className="absolute inset-0 rounded-lg overflow-hidden">
-              {Array.from({ length: NUM_THUMBNAILS }).map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute top-0 bottom-0 border-r border-[#2d3f55] overflow-hidden pointer-events-none"
-                  style={{ left: `${(i / NUM_THUMBNAILS) * 100}%`, width: `${100 / NUM_THUMBNAILS}%` }}
-                >
-                  {thumbnails[i]
-                    ? <img src={thumbnails[i]} alt="" className="w-full h-full object-cover" />
-                    : <div className="w-full h-full bg-[#243044] animate-pulse" />}
-                </div>
-              ))}
+              {(() => {
+                const el = scrollRef.current;
+                const containerW = el ? el.clientWidth : 800;
+                const totalW = containerW * zoomLevel;
+                const CELL_W = 120; // fixed pixel width per thumbnail cell
+                const cellCount = Math.max(NUM_THUMBNAILS, Math.ceil(totalW / CELL_W));
+                const cellWidthPct = 100 / cellCount;
+                return Array.from({ length: cellCount }).map((_, i) => {
+                  // Map this cell to the nearest pre-extracted thumbnail
+                  const cellTime = (i / cellCount) * duration;
+                  const thumbIdx = Math.min(
+                    NUM_THUMBNAILS - 1,
+                    Math.round((cellTime / duration) * NUM_THUMBNAILS)
+                  );
+                  return (
+                    <div
+                      key={i}
+                      className="absolute top-0 bottom-0 border-r border-[#2d3f55] overflow-hidden pointer-events-none"
+                      style={{ left: `${i * cellWidthPct}%`, width: `${cellWidthPct}%` }}
+                    >
+                      {thumbnails[thumbIdx]
+                        ? <img src={thumbnails[thumbIdx]} alt="" className="w-full h-full object-cover" />
+                        : <div className="w-full h-full bg-[#243044] animate-pulse" />}
+                    </div>
+                  );
+                });
+              })()}
             </div>
 
             {/* Committed segment overlays (green) */}
