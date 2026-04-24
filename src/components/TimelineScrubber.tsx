@@ -22,6 +22,7 @@ function formatTimecodeMs(secs: number): string {
 }
 
 export function TimelineScrubber() {
+  const STRIP_HEIGHT = 72; // px
   const { currentTime, duration, seekTo, markIn, markOut, segments, setMarkIn, setMarkOut, videoUrl } = useVideoEditor();
   const [thumbnails, setThumbnails]         = useState<string[]>([]);
   const [zoomLevel, setZoomLevel]           = useState(1);
@@ -29,16 +30,24 @@ export function TimelineScrubber() {
   const [draggingEdge, setDraggingEdge]     = useState<"in" | "out" | null>(null);
   const [isScrubbing, setIsScrubbing]       = useState(false);
   const [isHoveringPlayhead, setIsHoveringPlayhead] = useState(false);
+  const [videoAspectRatio, setVideoAspectRatio]     = useState(16 / 9); // default to 16:9
 
   const thumbVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef     = useRef<HTMLCanvasElement>(null);
   const scrollRef     = useRef<HTMLDivElement>(null);
   const scaledRef     = useRef<HTMLDivElement>(null);
 
-  const NUM_THUMBNAILS = 60;
+  const NUM_THUMBNAILS = 120;
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  const maxZoom      = duration > 0 ? Math.max(1, Math.floor(duration / Math.min(60, duration))) : 1;
+  // Increase maxZoom significantly: 
+  // We want to be able to fit 8 full-size horizontal thumbnails side-by-side per second at max zoom.
+  // 1 thumbnail = STRIP_HEIGHT * videoAspectRatio (~113px for 64px height).
+  // 8 thumbnails = ~900px per second.
+  // If baseline (1x) is 100% width, we need a zoom that makes 1s = ~900px.
+  const idealSecWidth = 8 * (STRIP_HEIGHT * videoAspectRatio);
+  const maxZoom = duration > 0 ? Math.max(1, Math.ceil((duration * idealSecWidth) / (scrollRef.current?.clientWidth ?? 1200))) : 1;
+
   const viewDuration = duration > 0 ? duration / zoomLevel : 0;
   const viewEnd      = Math.min(duration, viewStart + viewDuration);
 
@@ -121,7 +130,7 @@ export function TimelineScrubber() {
   // ── Zoom ─────────────────────────────────────────────────────────────────
   const zoom = useCallback((dir: "in" | "out") => {
     setZoomLevel(prev => {
-      const step = Math.max(1, Math.round(prev * 0.4));
+      const step = Math.max(1, Math.round(prev * 0.8));
       const next = dir === "in" ? Math.min(maxZoom, prev + step) : Math.max(1, prev - step);
       if (next === prev) return prev;
       const newViewDur = duration / next;
@@ -156,8 +165,14 @@ export function TimelineScrubber() {
       const ctx = c.getContext("2d");
       if (ctx) {
         try {
-          c.width = 160; c.height = 90;
-          ctx.drawImage(video, 0, 0, 160, 90);
+          // Use natural dimensions to maintain aspect ratio
+          const targetHeight = 120; // fixed height for thumbnails
+          const targetWidth = Math.round(targetHeight * (video.videoWidth / video.videoHeight || 16/9));
+          
+          c.width = targetWidth;
+          c.height = targetHeight;
+          
+          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
           frames.push(c.toDataURL("image/jpeg", 0.5));
         } catch (err) {
           console.warn("Thumbnail capture failed (CORS?):", err);
@@ -178,7 +193,9 @@ export function TimelineScrubber() {
 
     const start = () => {
       if (video.duration && isFinite(video.duration)) {
-        console.log("Starting thumbnail extraction for:", videoUrl, "Duration:", video.duration);
+        const ratio = video.videoWidth / video.videoHeight || 16/9;
+        setVideoAspectRatio(ratio);
+        console.log("Starting thumbnail extraction. Aspect Ratio:", ratio);
         idx = 0;
         frames.length = 0;
         setThumbnails([]);                        
@@ -205,7 +222,7 @@ export function TimelineScrubber() {
 
   // ── Adaptive time markers ─────────────────────────────────────────────────
   const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
-  const rawInterval = viewDuration > 0 ? viewDuration / 12 : 10; // aim for ~12 markers
+  const rawInterval = viewDuration > 0 ? viewDuration / 10 : 10; // aim for ~10 markers
   const markerInterval = niceIntervals.find(n => n >= rawInterval) ?? 600;
   const timeMarkers: { pct: number; label: string; isMajor: boolean }[] = [];
   if (duration > 0 && viewDuration > 0) {
@@ -241,7 +258,7 @@ export function TimelineScrubber() {
     document.addEventListener("mouseup", onUp);
   }, [duration, viewDuration, scrollToTime]);
 
-  const STRIP_HEIGHT = 72; // px — matches h-[72px] on the strip
+
   const RULER_HEIGHT = 24; // px — matches h-6 on the ruler
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -310,7 +327,7 @@ export function TimelineScrubber() {
             <div className="absolute inset-0 rounded-lg overflow-hidden">
               {(() => {
                 const THUMBS_PER_INTERVAL = 8;
-                const MIN_CELL_PX = 80; // narrower than this looks like vertical slices
+                const MIN_CELL_PX = 40; // reduced to allow 8 per 1s interval on most screens
 
                 // How many cells the interval rule wants
                 const cellCountIdeal = (duration > 0 && markerInterval > 0)
@@ -322,23 +339,34 @@ export function TimelineScrubber() {
                 const maxCells = Math.max(THUMBS_PER_INTERVAL, Math.floor(totalW / MIN_CELL_PX));
                 const cellCount = Math.min(cellCountIdeal, maxCells);
 
-                const cellWidthPct = 100 / cellCount;
-                return Array.from({ length: cellCount }).map((_, i) => {
-                  // Map each cell to the nearest pre-extracted frame by time position
-                  const cellTimeFraction = i / cellCount;
-                  const thumbIdx = Math.min(
-                    NUM_THUMBNAILS - 1,
-                    Math.round(cellTimeFraction * (NUM_THUMBNAILS - 1))
-                  );
+                const thumbWidth = STRIP_HEIGHT * videoAspectRatio;
+                const totalWidthPx = (scrollRef.current?.clientWidth ?? 800) * zoomLevel;
+                const filmstripCellCount = Math.max(1, Math.ceil(totalWidthPx / thumbWidth));
+                const filmstripCellWidthPct = (thumbWidth / totalWidthPx) * 100;
+
+                return Array.from({ length: filmstripCellCount }).map((_, i) => {
+                  const cellTimeFraction = (i * thumbWidth) / totalWidthPx;
+                  const thumbIdx = Math.min(NUM_THUMBNAILS - 1, Math.round(cellTimeFraction * (NUM_THUMBNAILS - 1)));
+                  const isLoaded = !!thumbnails[thumbIdx];
+                  
                   return (
                     <div
                       key={i}
-                      className="absolute top-0 bottom-0 border-r border-[#2d3f55]/50 overflow-hidden pointer-events-none"
-                      style={{ left: `${i * cellWidthPct}%`, width: `${cellWidthPct}%` }}
+                      className="absolute top-0 bottom-0 border-r border-[#2d3f55]/20 overflow-hidden pointer-events-none"
+                      style={{ 
+                        left: `${i * filmstripCellWidthPct}%`, 
+                        width: `${filmstripCellWidthPct}%`, 
+                      }}
                     >
-                      {thumbnails[thumbIdx]
-                        ? <img src={thumbnails[thumbIdx]} alt="" className="w-full h-full object-cover" />
-                        : <div className="w-full h-full bg-[#243044] animate-pulse" />}
+                      {isLoaded ? (
+                        <img 
+                          src={thumbnails[thumbIdx]} 
+                          alt="" 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-[#243044] animate-pulse" />
+                      )}
                     </div>
                   );
                 });

@@ -246,11 +246,16 @@ function VideoCard({
     vid.addEventListener("loadedmetadata", () => { vid.currentTime = 0.1; }, { once: true });
     vid.addEventListener("seeked", () => {
       const canvas = document.createElement("canvas");
-      canvas.width = 320; canvas.height = 180;
+      const ratio = vid.videoWidth / vid.videoHeight || 16/9;
+      const targetHeight = 180;
+      const targetWidth = Math.round(targetHeight * ratio);
+      
+      canvas.width = targetWidth; 
+      canvas.height = targetHeight;
       const ctx = canvas.getContext("2d");
       if (ctx) {
         try {
-          ctx.drawImage(vid, 0, 0, 320, 180);
+          ctx.drawImage(vid, 0, 0, targetWidth, targetHeight);
           setThumbUrl(canvas.toDataURL("image/jpeg", 0.6));
         } catch (e) {
           console.warn("VideoCard thumbnail failed (CORS):", e);
@@ -271,7 +276,7 @@ function VideoCard({
       {/* Thumbnail */}
       <div className="aspect-video bg-[#0d1526] relative overflow-hidden rounded-t-2xl">
         {thumbUrl ? (
-          <img src={thumbUrl} alt={video.name} className="w-full h-full object-cover" />
+          <img src={thumbUrl} alt={video.name} className="w-full h-full object-contain" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Film className="w-10 h-10 text-gray-600" />
