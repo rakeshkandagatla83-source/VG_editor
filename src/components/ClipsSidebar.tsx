@@ -4,19 +4,15 @@ import {
   Search, MoreVertical, LayoutGrid, FileText,
   Play, Download, Loader2, Mic, RefreshCw, X,
 } from "lucide-react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { useVideoEditor } from "@/contexts/VideoEditorContext";
 import { useState, useCallback, useRef, useEffect } from "react";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
   const ss = Math.floor(s % 60);
   return `${m}:${ss.toString().padStart(2, "0")}`;
 }
 
-// ── Server-side FFmpeg export (with browser MediaRecorder fallback) ────────────
 function useClipExport() {
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -32,7 +28,6 @@ function useClipExport() {
 
     const safeName = title.replace(/[^a-z0-9]/gi, "_");
 
-    // ── Try server FFmpeg first ──
     try {
       setProgress(10);
       const res = await fetch("/api/export", {
@@ -40,7 +35,6 @@ function useClipExport() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startTime, endTime, filename: safeName }),
       });
-
       if (res.ok) {
         setProgress(90);
         const blob = await res.blob();
@@ -51,17 +45,12 @@ function useClipExport() {
         setExportingId(null); setProgress(0);
         return;
       }
-
       const data = await res.json();
-      if (data.error !== "ffmpeg_not_found") {
-        throw new Error(data.error);
-      }
-      // Fall through to browser export if ffmpeg not found
+      if (data.error !== "ffmpeg_not_found") throw new Error(data.error);
     } catch (e) {
       console.warn("Server export failed, using browser fallback:", e);
     }
 
-    // ── Browser MediaRecorder fallback ──
     const duration = endTime - startTime;
     await new Promise<void>((resolve) => {
       const video = document.createElement("video");
@@ -97,9 +86,16 @@ function useClipExport() {
   return { exportClip, exportingId, progress };
 }
 
-// ── Simulated transcript generator ────────────────────────────────────────────
-// In production: replace with a call to Whisper API / your AI backend
-function generateMockTranscript(duration: number) {
+type TranscriptSegment = {
+  _id: string;
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string;
+  confidence: number;
+};
+
+function generateMockTranscript(duration: number): TranscriptSegment[] {
   const SAMPLE_LINES = [
     "Welcome to the match. Today we have an exciting game.",
     "The players are warming up on the field.",
@@ -132,49 +128,36 @@ function generateMockTranscript(duration: number) {
     "The referee checks his watch.",
     "And there is the final whistle!",
   ];
-
-  const segmentDuration = duration / SAMPLE_LINES.length;
+  const segDur = duration / SAMPLE_LINES.length;
   return SAMPLE_LINES.map((text, i) => ({
-    start: parseFloat((i * segmentDuration).toFixed(1)),
-    end: parseFloat(((i + 1) * segmentDuration - 0.2).toFixed(1)),
+    _id: `ts_${i}`,
+    start: parseFloat((i * segDur).toFixed(1)),
+    end: parseFloat(((i + 1) * segDur - 0.2).toFixed(1)),
     text,
     speaker: i % 2 === 0 ? "Commentator 1" : "Commentator 2",
     confidence: parseFloat((0.88 + Math.random() * 0.12).toFixed(2)),
   }));
 }
 
-// ── Main Component ─────────────────────────────────────────────────────────────
-const VIDEO_ID = "master";   // fixed key since video is local
-
 export function ClipsSidebar() {
-  const { seekTo, setMarkIn, setMarkOut, videoRef, duration, videoUrl, videoId } = useVideoEditor();
-  const convexClips = useQuery(api.clips.getClips, { videoId: videoId ?? undefined });
-  type ClipDoc = NonNullable<typeof convexClips>[number];
-  const clips: ClipDoc[] = convexClips ?? [];
+  const { seekTo, setMarkIn, setMarkOut, videoRef, duration, videoUrl, clips } = useVideoEditor();
   const { exportClip, exportingId, progress } = useClipExport();
 
-  const transcriptSegments = useQuery(api.transcript.getTranscript, { videoId: videoId ?? "none" });
-  const saveTranscript     = useMutation(api.transcript.saveTranscript);
-  const clearTranscript    = useMutation(api.transcript.clearTranscript);
-
-  const [activeTab, setActiveTab]   = useState<"clips" | "transcript">("clips");
+  const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
+  const [activeTab, setActiveTab] = useState<"clips" | "transcript">("clips");
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [generating, setGenerating] = useState(false);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
 
-  // Auto-highlight transcript segment matching current playback time
   const currentTime = videoRef.current?.currentTime ?? 0;
   useEffect(() => {
-    if (activeTab !== "transcript" || !transcriptSegments) return;
-    type ActiveSegDoc = NonNullable<typeof transcriptSegments>[number];
-    const active = transcriptSegments.find(
-      (s: ActiveSegDoc) => currentTime >= s.start && currentTime <= s.end
-    );
+    if (activeTab !== "transcript" || transcript.length === 0) return;
+    const active = transcript.find((s) => currentTime >= s.start && currentTime <= s.end);
     if (active) setActiveSegmentId(active._id);
-  }, [currentTime, transcriptSegments, activeTab]);
+  }, [currentTime, transcript, activeTab]);
 
-  const handleClipClick = (clip: ClipDoc) => {
+  const handleClipClick = (clip: typeof clips[number]) => {
     setActiveClipId(clip._id);
     setMarkIn(clip.startTime);
     setMarkOut(clip.endTime);
@@ -185,32 +168,23 @@ export function ClipsSidebar() {
   const handleGenerateTranscript = async () => {
     if (generating) return;
     setGenerating(true);
-    // Simulate AI processing delay (2-4s)
-    await new Promise(r => setTimeout(r, 2500));
-    const segments = generateMockTranscript(duration || 1720);
-    await saveTranscript({ videoId: VIDEO_ID, segments });
+    await new Promise((r) => setTimeout(r, 2500));
+    setTranscript(generateMockTranscript(duration || 1720));
     setGenerating(false);
   };
 
-  const handleSegmentClick = (start: number) => {
-    seekTo(start);
-    videoRef.current?.play();
-  };
-
-  const filteredClips = clips.filter((c: ClipDoc) =>
+  const filteredClips = clips.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  type TSegDoc = NonNullable<typeof transcriptSegments>[number];
-  const filteredTranscript = (transcriptSegments ?? []).filter((s: TSegDoc) =>
+  const filteredTranscript = transcript.filter((s) =>
     s.text.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div className="w-full h-full flex flex-col bg-white border-l border-gray-200">
-      {/* ── Tabs ──────────────────────────────────────────────────── */}
+      {/* Tabs */}
       <div className="flex border-b border-gray-200">
-        {(["clips", "transcript"] as const).map(tab => (
+        {(["clips", "transcript"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => { setActiveTab(tab); setSearchQuery(""); }}
@@ -225,15 +199,15 @@ export function ClipsSidebar() {
         ))}
       </div>
 
-      {/* ── Search ────────────────────────────────────────────────── */}
+      {/* Search */}
       <div className="p-3 border-b border-gray-100">
-        <div className="relative group">
+        <div className="relative">
           <input
             type="text"
             placeholder={activeTab === "clips" ? "Search clips…" : "Search transcript…"}
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-gray-50 border border-gray-200 rounded-md py-2 pl-3 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 focus:bg-white transition-all duration-200"
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-gray-50 border border-gray-200 rounded-md py-2 pl-3 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 focus:bg-white transition-all"
           />
           {searchQuery
             ? <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
@@ -242,22 +216,10 @@ export function ClipsSidebar() {
         </div>
       </div>
 
-      {/* ── Clips Tab ─────────────────────────────────────────────── */}
+      {/* Clips Tab */}
       {activeTab === "clips" && (
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {convexClips === undefined ? (
-            <div className="space-y-3">
-              {[1,2,3].map(i => (
-                <div key={i} className="flex space-x-3 animate-pulse">
-                  <div className="w-24 h-16 bg-gray-200 rounded-md flex-shrink-0" />
-                  <div className="flex-1 space-y-2 py-1">
-                    <div className="h-3 bg-gray-200 rounded w-3/4" />
-                    <div className="h-2 bg-gray-100 rounded w-1/2" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filteredClips.length === 0 ? (
+          {filteredClips.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-center space-y-3">
               <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
                 <LayoutGrid className="w-6 h-6 text-gray-400" />
@@ -281,7 +243,6 @@ export function ClipsSidebar() {
                     isActive ? "bg-indigo-50 border-indigo-200 shadow-sm" : "hover:bg-gray-50 border-transparent hover:border-gray-100"
                   }`}
                 >
-                  {/* Thumbnail */}
                   <div className="relative w-24 h-16 rounded-md overflow-hidden flex-shrink-0 border border-gray-100 bg-gray-800">
                     {clip.thumbnail
                       ? <img src={clip.thumbnail} alt="" className="w-full h-full object-cover" />
@@ -295,11 +256,10 @@ export function ClipsSidebar() {
                     </div>
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div className="flex items-start justify-between">
                       <h4 className="text-sm font-semibold text-gray-900 truncate pr-1 leading-tight">{clip.title}</h4>
-                      <button className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                      <button className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <MoreVertical className="w-4 h-4" />
                       </button>
                     </div>
@@ -310,7 +270,7 @@ export function ClipsSidebar() {
                     </div>
                     <div className="text-[10px] text-gray-400 font-mono">{formatTime(clip.startTime)} → {formatTime(clip.endTime)}</div>
                     <button
-                      onClick={e => { e.stopPropagation(); exportClip(clip._id, clip.startTime, clip.endTime, clip.title, videoUrl); }}
+                      onClick={(e) => { e.stopPropagation(); exportClip(clip._id, clip.startTime, clip.endTime, clip.title, videoUrl); }}
                       disabled={!!exportingId}
                       className={`mt-1 flex items-center space-x-1 text-[11px] font-medium rounded px-2 py-0.5 w-fit transition-all
                         ${isExporting ? "bg-indigo-100 text-indigo-600 cursor-wait" : "bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40"}`}
@@ -327,24 +287,16 @@ export function ClipsSidebar() {
         </div>
       )}
 
-      {/* ── Transcript Tab ────────────────────────────────────────── */}
+      {/* Transcript Tab */}
       {activeTab === "transcript" && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Generate / Regenerate button */}
           <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
             <span className="text-xs text-gray-500">
-              {transcriptSegments === undefined
-                ? "Loading…"
-                : transcriptSegments.length > 0
-                  ? `${transcriptSegments.length} segments`
-                  : "No transcript yet"}
+              {transcript.length > 0 ? `${transcript.length} segments` : "No transcript yet"}
             </span>
             <div className="flex items-center space-x-2">
-              {transcriptSegments && transcriptSegments.length > 0 && (
-                <button
-                  onClick={() => clearTranscript({ videoId: VIDEO_ID })}
-                  className="text-[11px] text-red-400 hover:text-red-600 transition-colors"
-                >
+              {transcript.length > 0 && (
+                <button onClick={() => setTranscript([])} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
                   Clear
                 </button>
               )}
@@ -355,14 +307,13 @@ export function ClipsSidebar() {
               >
                 {generating
                   ? <><Loader2 className="w-3 h-3 animate-spin" /><span>Generating…</span></>
-                  : transcriptSegments && transcriptSegments.length > 0
+                  : transcript.length > 0
                     ? <><RefreshCw className="w-3 h-3" /><span>Regenerate</span></>
                     : <><Mic className="w-3 h-3" /><span>Generate</span></>}
               </button>
             </div>
           </div>
 
-          {/* Transcript segments list */}
           <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {generating && (
               <div className="flex flex-col items-center justify-center py-12 space-y-3">
@@ -372,7 +323,7 @@ export function ClipsSidebar() {
               </div>
             )}
 
-            {!generating && (!transcriptSegments || transcriptSegments.length === 0) && (
+            {!generating && transcript.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 space-y-3 text-center">
                 <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
                   <Mic className="w-6 h-6 text-gray-400" />
@@ -384,16 +335,14 @@ export function ClipsSidebar() {
               </div>
             )}
 
-            {!generating && filteredTranscript.map((seg: TSegDoc) => {
+            {!generating && filteredTranscript.map((seg) => {
               const isActive = activeSegmentId === seg._id;
               return (
                 <div
                   key={seg._id}
-                  onClick={() => handleSegmentClick(seg.start)}
+                  onClick={() => { seekTo(seg.start); videoRef.current?.play(); }}
                   className={`group cursor-pointer p-2 rounded-lg transition-all border ${
-                    isActive
-                      ? "bg-indigo-50 border-indigo-200"
-                      : "hover:bg-gray-50 border-transparent hover:border-gray-100"
+                    isActive ? "bg-indigo-50 border-indigo-200" : "hover:bg-gray-50 border-transparent hover:border-gray-100"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-0.5">
@@ -406,7 +355,7 @@ export function ClipsSidebar() {
                   </div>
                   <p className={`text-xs leading-relaxed ${isActive ? "text-gray-900 font-medium" : "text-gray-700"}`}>
                     {searchQuery
-                      ? seg.text.split(new RegExp(`(${searchQuery})`, "gi")).map((part: string, i: number) =>
+                      ? seg.text.split(new RegExp(`(${searchQuery})`, "gi")).map((part, i) =>
                           part.toLowerCase() === searchQuery.toLowerCase()
                             ? <mark key={i} className="bg-yellow-200 text-gray-900 rounded px-0.5">{part}</mark>
                             : part

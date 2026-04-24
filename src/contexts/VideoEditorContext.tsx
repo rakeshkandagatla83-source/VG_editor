@@ -1,9 +1,17 @@
 "use client";
 
 import React, { createContext, useContext, useRef, useState, useEffect, ReactNode } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+
+export interface ClipItem {
+  _id: string;
+  videoId: string;
+  title: string;
+  startTime: number;
+  endTime: number;
+  status: "Ready" | "Processing";
+  thumbnail: string;
+  createdAt: number;
+}
 
 export interface GeneratedClip {
   id: string;
@@ -15,8 +23,7 @@ export interface GeneratedClip {
 }
 
 export interface SegmentType {
-  id: string;            // Convex doc ID used for removal
-  _id?: string;
+  id: string;
   start: number;
   end: number;
 }
@@ -40,13 +47,12 @@ interface VideoEditorContextType {
   setMarkIn: (time: number | null) => void;
   markOut: number | null;
   setMarkOut: (time: number | null) => void;
-  clips: GeneratedClip[];
-  addGeneratedClip: (clip: Omit<GeneratedClip, "id" | "createdAt" | "status">) => void;
+  clips: ClipItem[];
+  addClip: (clip: Omit<ClipItem, "_id" | "createdAt" | "status">) => void;
   segments: SegmentType[];
   addSegment: (start: number, end: number) => void;
   removeSegment: (id: string) => void;
   clearSegments: () => void;
-  // Segment preview (EDL playback)
   isPreviewingSegments: boolean;
   previewSegmentIndex: number;
   startSegmentPreview: () => void;
@@ -57,7 +63,15 @@ interface VideoEditorContextType {
 
 const VideoEditorContext = createContext<VideoEditorContextType | undefined>(undefined);
 
-export function VideoEditorProvider({ children, videoUrl, videoId }: { children: ReactNode; videoUrl?: string; videoId?: string }) {
+export function VideoEditorProvider({
+  children,
+  videoUrl,
+  videoId,
+}: {
+  children: ReactNode;
+  videoUrl?: string;
+  videoId?: string;
+}) {
   const resolvedVideoUrl = videoUrl ?? process.env.NEXT_PUBLIC_VIDEO_URL ?? "/master.mp4";
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -65,43 +79,15 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [volume, setVolume] = useState(1);
-  const [markIn, setMarkIn]   = useState<number | null>(null);
+  const [markIn, setMarkIn] = useState<number | null>(null);
   const [markOut, setMarkOut] = useState<number | null>(null);
-  const [clips, setClips] = useState<GeneratedClip[]>([]);
-
-  // ── Stable session ID (persists across refreshes) ──────────────────────
-  const [sessionId] = useState<string>(() => {
-    if (typeof window === 'undefined') return 'ssr';
-    const stored = localStorage.getItem('editor_session_id');
-    if (stored) return stored;
-    const id = Math.random().toString(36).slice(2);
-    localStorage.setItem('editor_session_id', id);
-    return id;
-  });
-
-  // ── Convex-backed segments ──────────────────────────────────────────────
-  const convexSegments = useQuery(api.segments.getSegments, { sessionId });
-  const addSegmentMut  = useMutation(api.segments.addSegment);
-  const removeSegMut   = useMutation(api.segments.removeSegment);
-  const clearSegMut    = useMutation(api.segments.clearSegments);
-
-  // Map Convex docs to local SegmentType shape
-  type SegmentDoc = NonNullable<typeof convexSegments>[number];
-  const segments: SegmentType[] = (convexSegments ?? []).map((s: SegmentDoc) => ({
-    id: s._id,
-    _id: s._id,
-    start: s.start,
-    end: s.end,
-  }));
-
+  const [clips, setClips] = useState<ClipItem[]>([]);
+  const [segments, setSegments] = useState<SegmentType[]>([]);
 
   const togglePlayPause = () => {
     if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
+      if (isPlaying) videoRef.current.pause();
+      else videoRef.current.play();
       setIsPlaying(!isPlaying);
     }
   };
@@ -118,25 +104,41 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
   const seekTo = (seconds: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = seconds;
-      setCurrentTime(seconds); // Optimistic visual update
+      setCurrentTime(seconds);
     }
   };
 
   const addSegment = (start: number, end: number) => {
-    addSegmentMut({ sessionId, start, end });
+    const id = `seg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    setSegments((prev) => [...prev, { id, start, end }]);
   };
 
   const removeSegment = (id: string) => {
-    removeSegMut({ id: id as Id<"pendingSegments"> });
+    setSegments((prev) => prev.filter((s) => s.id !== id));
   };
 
-  const clearSegments = () => clearSegMut({ sessionId });
+  const clearSegments = () => setSegments([]);
+
+  const addClip = (clip: Omit<ClipItem, "_id" | "createdAt" | "status">) => {
+    const newClip: ClipItem = {
+      ...clip,
+      _id: `clip_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      createdAt: Date.now(),
+      status: "Processing",
+    };
+    setClips((prev) => [...prev, newClip]);
+    setTimeout(() => {
+      setClips((prev) =>
+        prev.map((c) => (c._id === newClip._id ? { ...c, status: "Ready" } : c))
+      );
+    }, 2500);
+  };
 
   // ── Segment Preview (EDL playback) ────────────────────────────────────
   const [isPreviewingSegments, setIsPreviewingSegments] = useState(false);
-  const [previewSegmentIndex, setPreviewSegmentIndex]   = useState(0);
-  const previewActiveRef = useRef(false);   // ref avoids stale closure in event
-  const seekingRef       = useRef(false);   // suppress false end-detection during seek
+  const [previewSegmentIndex, setPreviewSegmentIndex] = useState(0);
+  const previewActiveRef = useRef(false);
+  const seekingRef = useRef(false);
 
   const startSegmentPreview = () => {
     if (segments.length === 0) return;
@@ -148,7 +150,6 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
     if (videoRef.current) {
       videoRef.current.currentTime = sorted[0].start;
       videoRef.current.play();
-      // Clear seeking flag after seek settles
       setTimeout(() => { seekingRef.current = false; }, 400);
     }
   };
@@ -160,14 +161,12 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
     videoRef.current?.pause();
   };
 
-  // Watch currentTime and hop between segments
   useEffect(() => {
     if (!isPreviewingSegments || segments.length === 0 || seekingRef.current) return;
     const sorted = [...segments].sort((a, b) => a.start - b.start);
     const current = sorted[previewSegmentIndex];
     if (!current) { stopSegmentPreview(); return; }
-
-    if (currentTime >= current.end - 0.15) {     // 150ms early to avoid audio pop
+    if (currentTime >= current.end - 0.15) {
       const nextIdx = previewSegmentIndex + 1;
       if (nextIdx < sorted.length) {
         setPreviewSegmentIndex(nextIdx);
@@ -177,34 +176,11 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
           setTimeout(() => { seekingRef.current = false; }, 400);
         }
       } else {
-        stopSegmentPreview();   // All segments finished
+        stopSegmentPreview();
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTime, isPreviewingSegments, previewSegmentIndex]);
-
-  const addGeneratedClip = (newClip: Omit<GeneratedClip, "id" | "createdAt" | "status">) => {
-    setClips(prev => [
-      ...prev,
-      {
-        ...newClip,
-        id: `clip_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: Date.now(),
-        status: "Processing",
-      }
-    ]);
-    
-    // Auto-update status to "Ready" after 3 seconds asynchronously to simulate processing
-    setTimeout(() => {
-      setClips(currentClips => 
-        currentClips.map(c => 
-          (c.title === newClip.title && c.startTime === newClip.startTime) 
-            ? { ...c, status: "Ready" } 
-            : c
-        )
-      );
-    }, 2500);
-  };
 
   useEffect(() => {
     if (videoRef.current) {
@@ -217,22 +193,18 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       switch (e.code) {
-        case 'Space':
+        case "Space":
           e.preventDefault();
           if (videoRef.current) {
             if (videoRef.current.paused) videoRef.current.play();
             else videoRef.current.pause();
           }
           break;
-        case 'KeyI':
-          setMarkIn(videoRef.current?.currentTime ?? 0);
-          break;
-        case 'KeyO':
-          setMarkOut(videoRef.current?.currentTime ?? 0);
-          break;
-        case 'KeyJ':
+        case "KeyI": setMarkIn(videoRef.current?.currentTime ?? 0); break;
+        case "KeyO": setMarkOut(videoRef.current?.currentTime ?? 0); break;
+        case "KeyJ":
           e.preventDefault();
           if (videoRef.current) {
             const r = videoRef.current.playbackRate;
@@ -240,10 +212,8 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
             setPlaybackRate(videoRef.current.playbackRate);
           }
           break;
-        case 'KeyK':
-          if (videoRef.current) videoRef.current.pause();
-          break;
-        case 'KeyL':
+        case "KeyK": if (videoRef.current) videoRef.current.pause(); break;
+        case "KeyL":
           e.preventDefault();
           if (videoRef.current) {
             const r = videoRef.current.playbackRate;
@@ -252,18 +222,18 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
             setPlaybackRate(videoRef.current.playbackRate);
           }
           break;
-        case 'ArrowLeft':
+        case "ArrowLeft":
           e.preventDefault();
           if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           e.preventDefault();
           if (videoRef.current) videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 5);
           break;
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [duration, setMarkIn, setMarkOut, setPlaybackRate]);
 
   return (
@@ -288,7 +258,7 @@ export function VideoEditorProvider({ children, videoUrl, videoId }: { children:
         markOut,
         setMarkOut,
         clips,
-        addGeneratedClip,
+        addClip,
         segments,
         addSegment,
         removeSegment,
