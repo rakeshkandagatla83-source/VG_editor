@@ -8,21 +8,37 @@ export type MockVideo = {
 };
 
 const STORAGE_KEY = "mock_video_library";
+const STORAGE_VERSION = "v2";
+const VERSION_KEY = "mock_video_library_version";
 
 const SEED: MockVideo[] = [
   {
     _id: "mock_video_1",
-    name: "Sample Match Footage",
-    size: 524288000,
-    duration: 1720,
+    name: "Big Buck Bunny (Sample)",
+    size: 276134947,
+    duration: 596,
     createdAt: Date.now() - 86400000,
-    playUrl: "/master.mp4",
+    playUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+  },
+  {
+    _id: "mock_video_2",
+    name: "Elephant Dream (Sample)",
+    size: 52428800,
+    duration: 654,
+    createdAt: Date.now() - 172800000,
+    playUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
   },
 ];
 
 function load(): MockVideo[] {
   if (typeof window === "undefined") return SEED;
   try {
+    // Reset if version changed (e.g. seed URLs updated)
+    if (localStorage.getItem(VERSION_KEY) !== STORAGE_VERSION) {
+      localStorage.setItem(VERSION_KEY, STORAGE_VERSION);
+      localStorage.removeItem(STORAGE_KEY);
+      return SEED;
+    }
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : SEED;
   } catch {
@@ -33,6 +49,7 @@ function load(): MockVideo[] {
 function save(videos: MockVideo[]): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
+  localStorage.setItem(VERSION_KEY, STORAGE_VERSION);
 }
 
 export const mockVideoStore = {
