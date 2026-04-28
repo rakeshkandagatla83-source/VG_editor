@@ -150,43 +150,40 @@ export function TimelineScrubber() {
     }
   }, [currentTime]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Thumbnail extraction ──────────────────────────────────────────────────
+  // ── Thumbnail extraction ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (!videoUrl) return;                        
+    if (!videoUrl) return;
     const video = thumbVideoRef.current;
-    if (!video) return;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
 
+    let stopped = false; // cleanup guard
     let idx = 0;
     const frames: string[] = [];
-    const BATCH = 1;
 
     const capture = () => {
-      const c = canvasRef.current;
-      if (!c || !video) return;
-      
-      const ctx = c.getContext("2d");
-      if (ctx) {
+      if (stopped) return;
+      const ctx = canvas.getContext("2d");
+      if (ctx && video.videoWidth > 0) {
         try {
-          // Use natural dimensions to maintain aspect ratio
-          const targetHeight = 120; // fixed height for thumbnails
-          const targetWidth = Math.round(targetHeight * (video.videoWidth / video.videoHeight || 16/9));
-          
-          c.width = targetWidth;
-          c.height = targetHeight;
-          
-          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
-          frames.push(c.toDataURL("image/jpeg", 0.5));
-        } catch (err) {
-          console.warn("Thumbnail capture failed (CORS?):", err);
-          frames.push("");                        
+          // Always derive dimensions from the actual video
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          canvas.width = vw;
+          canvas.height = vh;
+          ctx.drawImage(video, 0, 0, vw, vh);
+          frames.push(canvas.toDataURL("image/jpeg", 0.65));
+        } catch {
+          frames.push(""); // CORS-tainted — push placeholder
         }
+      } else {
+        frames.push("");
       }
-      
+
       idx++;
-      if (idx % BATCH === 0 || idx === NUM_THUMBNAILS) {
-        setThumbnails([...frames]);
-      }
-      
+      // Flush every frame so the strip populates as fast as possible
+      setThumbnails([...frames]);
+
       if (idx < NUM_THUMBNAILS) {
         const nextTime = (video.duration / NUM_THUMBNAILS) * idx;
         if (isFinite(nextTime)) video.currentTime = nextTime;
@@ -194,33 +191,38 @@ export function TimelineScrubber() {
     };
 
     const start = () => {
-      if (video.duration && isFinite(video.duration)) {
-        const ratio = video.videoWidth / video.videoHeight || 16/9;
-        setVideoAspectRatio(ratio);
-        console.log("Starting thumbnail extraction. Aspect Ratio:", ratio);
-        idx = 0;
-        frames.length = 0;
-        setThumbnails([]);                        
-        video.currentTime = 0.05;                 // Start near beginning
-      }
+      if (stopped || !video.duration || !isFinite(video.duration)) return;
+      // Set aspect ratio immediately so cells resize before first frame arrives
+      const ratio = video.videoWidth / video.videoHeight;
+      if (ratio > 0) setVideoAspectRatio(ratio);
+      idx = 0;
+      frames.length = 0;
+      setThumbnails([]);
+      video.currentTime = 0.05;
     };
 
-    const handleError = (e: any) => {
-      console.error("Thumbnail video failed to load:", videoUrl, video.error);
+    const onError = () => {
+      if (!stopped) console.error("Thumb video failed:", videoUrl, video.error?.message);
     };
 
     video.addEventListener("loadedmetadata", start);
     video.addEventListener("seeked", capture);
-    video.addEventListener("error", handleError);
-    
+    video.addEventListener("error", onError);
+
+    // Force reload — JSX src attr alone may not retrigger on change
+    video.src = videoUrl;
+    video.load();
+
+    // If already ready (e.g. cached)
     if (video.readyState >= 1 && video.duration) start();
-    
+
     return () => {
+      stopped = true;
       video.removeEventListener("loadedmetadata", start);
       video.removeEventListener("seeked", capture);
-      video.removeEventListener("error", handleError);
+      video.removeEventListener("error", onError);
     };
-  }, [videoUrl]); // re-extract whenever the source video changes // re-extract whenever the source video changes
+  }, [videoUrl, NUM_THUMBNAILS]);
 
   // ── Adaptive time markers ─────────────────────────────────────────────────
   const niceIntervals = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
