@@ -209,7 +209,8 @@ export function TimelineScrubber() {
     video.addEventListener("seeked", capture);
     video.addEventListener("error", onError);
 
-    // Force reload — JSX src attr alone may not retrigger on change
+    // crossOrigin MUST be set before src — otherwise browser starts a non-CORS request
+    video.crossOrigin = "anonymous";
     video.src = videoUrl;
     video.load();
 
@@ -268,7 +269,7 @@ export function TimelineScrubber() {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="w-full flex flex-col mt-3 select-none">
-      <video ref={thumbVideoRef} src={videoUrl || undefined} className="hidden" muted preload="auto" crossOrigin="anonymous" />
+      <video ref={thumbVideoRef} className="hidden" muted preload="metadata" />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* ── Scroll container ──────────────────────────────────────── */}
