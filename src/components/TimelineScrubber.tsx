@@ -40,13 +40,15 @@ export function TimelineScrubber() {
   const NUM_THUMBNAILS = 120;
 
   // ── Derived ──────────────────────────────────────────────────────────────
-  // Increase maxZoom significantly: 
-  // We want to be able to fit 8 full-size horizontal thumbnails side-by-side per second at max zoom.
-  // 1 thumbnail = STRIP_HEIGHT * videoAspectRatio (~113px for 64px height).
-  // 8 thumbnails = ~900px per second.
-  // If baseline (1x) is 100% width, we need a zoom that makes 1s = ~900px.
-  const idealSecWidth = 8 * (STRIP_HEIGHT * videoAspectRatio);
-  const maxZoom = duration > 0 ? Math.max(1, Math.ceil((duration * idealSecWidth) / (scrollRef.current?.clientWidth ?? 1200))) : 1;
+  // Each thumbnail cell is STRIP_HEIGHT * aspectRatio pixels wide (e.g. 128px for 16:9)
+  // At max zoom we want 8 such cells to span exactly 1 second of video.
+  // So: (viewport_width * maxZoom) / duration = 8 * thumbCellPx
+  // => maxZoom = (8 * thumbCellPx * duration) / viewport_width
+  const thumbCellPx = STRIP_HEIGHT * videoAspectRatio; // e.g. 72 * (16/9) ≈ 128px
+  const viewportW   = scrollRef.current?.clientWidth ?? 1200;
+  const maxZoom     = duration > 0
+    ? Math.max(1, Math.ceil((8 * thumbCellPx * duration) / viewportW))
+    : 1;
 
   const viewDuration = duration > 0 ? duration / zoomLevel : 0;
   const viewEnd      = Math.min(duration, viewStart + viewDuration);
@@ -323,50 +325,32 @@ export function TimelineScrubber() {
             style={{ height: `${STRIP_HEIGHT}px` }}
             onMouseDown={handleMouseDown}
           >
-            {/* Frames — 8 thumbnails per ruler interval, min 80px wide so they look landscape */}
-            <div className="absolute inset-0 rounded-lg overflow-hidden">
+            {/* ── Pixel-perfect filmstrip ─────────────────────────────── */}
+            <div className="absolute inset-0 rounded-lg overflow-hidden flex flex-row">
               {(() => {
-                const THUMBS_PER_INTERVAL = 8;
-                const MIN_CELL_PX = 40; // reduced to allow 8 per 1s interval on most screens
+                // Each cell is exactly as wide as a proper landscape thumbnail
+                // so there's never compression or black bars.
+                const totalTimelinePx = viewportW * zoomLevel;
+                const cellsNeeded = Math.max(1, Math.ceil(totalTimelinePx / thumbCellPx));
 
-                // How many cells the interval rule wants
-                const cellCountIdeal = (duration > 0 && markerInterval > 0)
-                  ? Math.max(THUMBS_PER_INTERVAL, Math.round((duration / markerInterval) * THUMBS_PER_INTERVAL))
-                  : NUM_THUMBNAILS;
+                return Array.from({ length: cellsNeeded }).map((_, i) => {
+                  // Time fraction in the FULL video that this cell represents
+                  const cellTimeFraction = (i + 0.5) / cellsNeeded; // sample from center of cell
+                  const thumbIdx = Math.min(
+                    NUM_THUMBNAILS - 1,
+                    Math.round(cellTimeFraction * (NUM_THUMBNAILS - 1))
+                  );
+                  const src = thumbnails[thumbIdx];
 
-                // Cap so cells are never narrower than MIN_CELL_PX
-                const totalW = (scrollRef.current?.clientWidth ?? 800) * zoomLevel;
-                const maxCells = Math.max(THUMBS_PER_INTERVAL, Math.floor(totalW / MIN_CELL_PX));
-                const cellCount = Math.min(cellCountIdeal, maxCells);
-
-                const thumbWidth = STRIP_HEIGHT * videoAspectRatio;
-                const totalWidthPx = (scrollRef.current?.clientWidth ?? 800) * zoomLevel;
-                const filmstripCellCount = Math.max(1, Math.ceil(totalWidthPx / thumbWidth));
-                const filmstripCellWidthPct = (thumbWidth / totalWidthPx) * 100;
-
-                return Array.from({ length: filmstripCellCount }).map((_, i) => {
-                  const cellTimeFraction = (i * thumbWidth) / totalWidthPx;
-                  const thumbIdx = Math.min(NUM_THUMBNAILS - 1, Math.round(cellTimeFraction * (NUM_THUMBNAILS - 1)));
-                  const isLoaded = !!thumbnails[thumbIdx];
-                  
                   return (
                     <div
                       key={i}
-                      className="absolute top-0 bottom-0 border-r border-[#2d3f55]/20 overflow-hidden pointer-events-none"
-                      style={{ 
-                        left: `${i * filmstripCellWidthPct}%`, 
-                        width: `${filmstripCellWidthPct}%`, 
-                      }}
+                      className="flex-shrink-0 h-full border-r border-[#2d3f55]/20 overflow-hidden pointer-events-none"
+                      style={{ width: `${thumbCellPx}px` }}
                     >
-                      {isLoaded ? (
-                        <img 
-                          src={thumbnails[thumbIdx]} 
-                          alt="" 
-                          className="w-full h-full object-cover" 
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-[#243044] animate-pulse" />
-                      )}
+                      {src
+                        ? <img src={src} alt="" className="w-full h-full object-cover" />
+                        : <div className="w-full h-full bg-[#1e2d42] animate-pulse" />}
                     </div>
                   );
                 });
