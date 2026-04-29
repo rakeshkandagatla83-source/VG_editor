@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Info } from "lucide-react";
 import { useVideoEditor } from "@/contexts/VideoEditorContext";
 
@@ -33,7 +33,7 @@ export function VideoPlayer() {
     const loop = (time: number) => {
       const delta = (time - lastTime) / 1000;
       lastTime = time;
-      setMockCurrentTime(prev => {
+      setMockCurrentTime((prev: number) => {
         const next = Math.min(prev + delta, 596); // Assuming ~596s mock duration
         setCurrentTime(next);
         if (next >= 596) setIsPlaying(false);
