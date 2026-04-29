@@ -8,17 +8,17 @@ export type MockVideo = {
 };
 
 const STORAGE_KEY = "mock_video_library";
-const STORAGE_VERSION = "v2";
+const STORAGE_VERSION = "v3_demo_local";
 const VERSION_KEY = "mock_video_library_version";
 
 const SEED: MockVideo[] = [
   {
     _id: "mock_video_1",
-    name: "Big Buck Bunny (Sample)",
-    size: 276134947,
-    duration: 596,
-    createdAt: Date.now() - 86400000,
-    playUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    name: "Demo Video (Local)",
+    size: 1048576,
+    duration: 10,
+    createdAt: Date.now(),
+    playUrl: "/demo-video.mp4",
   },
   {
     _id: "mock_video_2",
@@ -26,7 +26,7 @@ const SEED: MockVideo[] = [
     size: 52428800,
     duration: 654,
     createdAt: Date.now() - 172800000,
-    playUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    playUrl: "/demo-video.mp4", // also fallback to local to prevent crashes
   },
 ];
 
