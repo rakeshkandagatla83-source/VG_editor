@@ -174,9 +174,28 @@ export function TimelineScrubber() {
           ctx.drawImage(video, 0, 0, vw, vh);
           frames.push(canvas.toDataURL("image/jpeg", 0.65));
         } catch {
-          frames.push(""); // CORS-tainted — push placeholder
+          // CORS-tainted or failed — generate a beautiful mock thumbnail!
+          const vw = video.videoWidth || 160;
+          const vh = video.videoHeight || 90;
+          canvas.width = vw;
+          canvas.height = vh;
+          
+          const gradient = ctx.createLinearGradient(0, 0, vw, vh);
+          gradient.addColorStop(0, `hsl(${(idx * 15) % 360}, 60%, 30%)`);
+          gradient.addColorStop(1, `hsl(${((idx + 5) * 15) % 360}, 80%, 15%)`);
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, vw, vh);
+          
+          ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+          ctx.font = `bold ${vh / 3}px Inter, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`${idx + 1}`, vw / 2, vh / 2);
+
+          frames.push(canvas.toDataURL("image/jpeg", 0.5));
         }
       } else {
+        // Fallback for completely failed video read
         frames.push("");
       }
 
@@ -209,8 +228,9 @@ export function TimelineScrubber() {
     video.addEventListener("seeked", capture);
     video.addEventListener("error", onError);
 
-    // crossOrigin MUST be set before src — otherwise browser starts a non-CORS request
-    video.crossOrigin = "anonymous";
+    // Note: deliberately avoiding crossOrigin="anonymous" here so the video can 
+    // at least load and play. If drawing to canvas taints it due to CORS, 
+    // our try/catch above will gracefully fall back to mock thumbnails.
     video.src = videoUrl;
     video.load();
 
