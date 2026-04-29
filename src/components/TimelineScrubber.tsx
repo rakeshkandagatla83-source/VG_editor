@@ -619,10 +619,14 @@ export function TimelineScrubber() {
           {/* ── Playhead ─────────────────────────────────────────── */}
           {/* Transparent hover zone — pointer-events-auto so hover is detected */}
           <div
-            className="absolute top-0 bottom-0 z-40 cursor-ew-resize"
+            className="absolute top-0 bottom-0 z-40 cursor-ew-resize pointer-events-auto"
             style={{ left: `${playheadLeft}%`, width: "20px", transform: "translateX(-50%)" }}
             onMouseEnter={() => setIsHoveringPlayhead(true)}
             onMouseLeave={() => setIsHoveringPlayhead(false)}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              handleMouseDown(e);
+            }}
           />
 
           {/* Visual playhead — pointer-events-none */}
