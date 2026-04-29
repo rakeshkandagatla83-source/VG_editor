@@ -51,6 +51,7 @@ interface VideoEditorContextType {
   addClip: (clip: Omit<ClipItem, "_id" | "createdAt" | "status">) => void;
   segments: SegmentType[];
   addSegment: (start: number, end: number) => void;
+  updateSegment: (id: string, updates: Partial<SegmentType>) => void;
   removeSegment: (id: string) => void;
   clearSegments: () => void;
   isPreviewingSegments: boolean;
@@ -111,6 +112,14 @@ export function VideoEditorProvider({
   const addSegment = (start: number, end: number) => {
     const id = `seg_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     setSegments((prev) => [...prev, { id, start, end }]);
+    setMarkIn(null);
+    setMarkOut(null);
+  };
+
+  const updateSegment = (id: string, updates: Partial<SegmentType>) => {
+    setSegments((prev) =>
+      prev.map((seg) => (seg.id === id ? { ...seg, ...updates } : seg))
+    );
   };
 
   const removeSegment = (id: string) => {
@@ -261,6 +270,7 @@ export function VideoEditorProvider({
         addClip,
         segments,
         addSegment,
+        updateSegment,
         removeSegment,
         clearSegments,
         isPreviewingSegments,

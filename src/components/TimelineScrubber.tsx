@@ -22,8 +22,22 @@ function formatTimecodeMs(secs: number): string {
 }
 
 export function TimelineScrubber() {
+  const {
+    videoRef,
+    currentTime,
+    setCurrentTime,
+    duration,
+    isPlaying,
+    setIsPlaying,
+    markIn,
+    setMarkIn,
+    markOut,
+    setMarkOut,
+    segments,
+    updateSegment,
+    videoUrl,
+  } = useVideoEditor();
   const STRIP_HEIGHT = 72; // px
-  const { currentTime, duration, seekTo, markIn, markOut, segments, setMarkIn, setMarkOut, videoUrl } = useVideoEditor();
   const [thumbnails, setThumbnails]         = useState<string[]>([]);
   const [zoomLevel, setZoomLevel]           = useState(1);
   const [viewStart, setViewStart]           = useState(0);
@@ -128,6 +142,43 @@ export function TimelineScrubber() {
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
   }, [duration, markIn, markOut, setMarkIn, setMarkOut]);
+
+  // ── Segment Handle Drag (green handles) ───────────────────────────────────
+  const [draggingSegment, setDraggingSegment] = useState<{ id: string, edge: "in" | "out" } | null>(null);
+
+  const handleSegmentDrag = useCallback((id: string, edge: "left" | "right", e: React.MouseEvent) => {
+    e.stopPropagation();
+    const el = scrollRef.current;
+    if (!el || duration === 0) return;
+    setDraggingSegment({ id, edge: edge === "left" ? "in" : "out" });
+    
+    // Find the current segment bounds before drag starts
+    const segment = segments.find(s => s.id === id);
+    if (!segment) return;
+    
+    // If dragging left (in), right (out) is the static bound, and vice versa.
+    const staticBound = edge === "left" ? segment.end : segment.start;
+    
+    const onMove = (mv: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const posInFull = el.scrollLeft + (mv.clientX - rect.left);
+      const t = Math.max(0, Math.min(duration, (posInFull / el.scrollWidth) * duration));
+      if (edge === "left") {
+        updateSegment(id, { start: Math.min(t, staticBound - 0.1) });
+      } else {
+        updateSegment(id, { end: Math.max(t, staticBound + 0.1) });
+      }
+    };
+    
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setDraggingSegment(null);
+    };
+    
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [duration, segments, updateSegment]);
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
   const zoom = useCallback((dir: "in" | "out") => {
@@ -408,13 +459,66 @@ export function TimelineScrubber() {
             </div>
 
             {/* Committed segment overlays (green) */}
-            {segments.map(seg => (
-              <div
-                key={seg.id}
-                className="absolute top-0 bottom-0 border-2 border-emerald-400 bg-emerald-400/25 z-10 pointer-events-none"
-                style={{ left: `${fullPct(seg.start)}%`, width: `${fullPct(seg.end) - fullPct(seg.start)}%` }}
-              />
-            ))}
+            {segments.map(seg => {
+              const segLeft = fullPct(seg.start);
+              const segWidth = fullPct(seg.end) - segLeft;
+              return (
+                <div key={seg.id} className="absolute top-0 bottom-0 z-10 pointer-events-none" style={{ left: `${segLeft}%`, width: `${segWidth}%` }}>
+                  {/* The transparent green background overlay */}
+                  <div className="absolute inset-0 bg-emerald-400/25 border-y-2 border-emerald-400" />
+                  
+                  {/* IN Handle (Green) */}
+                  <div
+                    className="absolute top-0 bottom-0 group pointer-events-auto"
+                    style={{ left: "0%" }}
+                    onMouseDown={e => handleSegmentDrag(seg.id, "left", e)}
+                  >
+                    {draggingSegment?.id === seg.id && draggingSegment.edge === "in" && (
+                      <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white whitespace-nowrap shadow-lg z-50 pointer-events-none" style={{ background: "#34d399" }}>
+                        {formatTimecodeMs(seg.start)}
+                      </div>
+                    )}
+                    <div
+                      className="absolute top-0 bottom-0 flex flex-col items-start cursor-ew-resize"
+                      style={{ width: "14px", transform: "translateX(-50%)", background: "#34d399", borderRadius: "3px 0 0 3px", boxShadow: "2px 0 8px rgba(52,211,153,0.4)" }}
+                    >
+                      <div className="flex-1 flex flex-col items-center justify-center gap-1 w-full">
+                        <div className="w-1 h-1 rounded-full bg-white/70" />
+                        <div className="w-1 h-1 rounded-full bg-white/70" />
+                        <div className="w-1 h-1 rounded-full bg-white/70" />
+                      </div>
+                      <div className="absolute top-0 left-0 h-[3px] w-5 rounded-br" style={{ background: "#34d399" }} />
+                      <div className="absolute bottom-0 left-0 h-[3px] w-5 rounded-tr" style={{ background: "#34d399" }} />
+                    </div>
+                  </div>
+
+                  {/* OUT Handle (Green) */}
+                  <div
+                    className="absolute top-0 bottom-0 group pointer-events-auto"
+                    style={{ left: "100%" }}
+                    onMouseDown={e => handleSegmentDrag(seg.id, "right", e)}
+                  >
+                    {draggingSegment?.id === seg.id && draggingSegment.edge === "out" && (
+                      <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-white whitespace-nowrap shadow-lg z-50 pointer-events-none" style={{ background: "#34d399" }}>
+                        {formatTimecodeMs(seg.end)}
+                      </div>
+                    )}
+                    <div
+                      className="absolute top-0 bottom-0 flex flex-col items-end cursor-ew-resize"
+                      style={{ width: "14px", transform: "translateX(-50%)", background: "#34d399", borderRadius: "0 3px 3px 0", boxShadow: "-2px 0 8px rgba(52,211,153,0.4)" }}
+                    >
+                      <div className="flex-1 flex flex-col items-center justify-center gap-1 w-full">
+                        <div className="w-1 h-1 rounded-full bg-white/70" />
+                        <div className="w-1 h-1 rounded-full bg-white/70" />
+                        <div className="w-1 h-1 rounded-full bg-white/70" />
+                      </div>
+                      <div className="absolute top-0 right-0 h-[3px] w-5 rounded-bl" style={{ background: "#34d399" }} />
+                      <div className="absolute bottom-0 right-0 h-[3px] w-5 rounded-tl" style={{ background: "#34d399" }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
 
             {/* ── Active Mark In/Out selection — only when both set ──── */}
             {hasMarkIn && hasMarkOut && selWidth > 0.01 && (
