@@ -9,7 +9,6 @@ import { TopNav } from "@/components/TopNav";
 import { VideoPlayer } from "@/components/VideoPlayer";
 import { TimelineControls } from "@/components/TimelineControls";
 import { TimelineScrubber } from "@/components/TimelineScrubber";
-import { SegmentsBin } from "@/components/SegmentsBin";
 import { ClipsSidebar } from "@/components/ClipsSidebar";
 import {
   Home, MonitorPlay, FolderCog, Video, Radio,
@@ -147,7 +146,6 @@ export default function EditorPage() {
                 <div className="mt-4 bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex-shrink-0">
                   <TimelineControls />
                   <TimelineScrubber />
-                  <SegmentsBin />
                 </div>
               </div>
               <div className="w-[380px] flex-shrink-0 bg-white relative z-10 flex flex-col">

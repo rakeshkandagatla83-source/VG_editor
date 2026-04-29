@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useVideoEditor } from "@/contexts/VideoEditorContext";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { SelectedSegments } from "./SelectedSegments";
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
@@ -218,7 +219,9 @@ export function ClipsSidebar() {
 
       {/* Clips Tab */}
       {activeTab === "clips" && (
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <SelectedSegments />
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {filteredClips.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-center space-y-3">
               <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
@@ -284,6 +287,7 @@ export function ClipsSidebar() {
               );
             })
           )}
+          </div>
         </div>
       )}
 
