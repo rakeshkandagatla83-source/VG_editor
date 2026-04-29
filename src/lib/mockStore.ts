@@ -8,15 +8,15 @@ export type MockVideo = {
 };
 
 const STORAGE_KEY = "mock_video_library";
-const STORAGE_VERSION = "v3_demo_local";
+const STORAGE_VERSION = "v4_big_buck_bunny";
 const VERSION_KEY = "mock_video_library_version";
 
 const SEED: MockVideo[] = [
   {
     _id: "mock_video_1",
-    name: "Demo Video (Local)",
-    size: 1048576,
-    duration: 10,
+    name: "Big Buck Bunny",
+    size: 64654925,
+    duration: 596,
     createdAt: Date.now(),
     playUrl: "/demo-video.mp4",
   },
