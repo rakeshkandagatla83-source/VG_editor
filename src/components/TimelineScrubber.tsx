@@ -35,6 +35,7 @@ export function TimelineScrubber() {
     setMarkOut,
     segments,
     updateSegment,
+    seekTo,
     videoUrl,
   } = useVideoEditor();
   const STRIP_HEIGHT = 72; // px
