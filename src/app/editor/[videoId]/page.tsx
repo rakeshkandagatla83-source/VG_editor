@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { mockVideoStore, MockVideo } from "@/lib/mockStore";
 import { VideoEditorProvider } from "@/contexts/VideoEditorContext";
@@ -80,13 +81,13 @@ export default function EditorPage() {
       <div className="w-[75px] flex-shrink-0 z-50">
         <div className="absolute top-0 left-0 h-full w-[75px] hover:w-[260px] transition-all duration-300 ease-in-out bg-[#0F0F23] flex flex-col items-stretch overflow-y-auto overflow-x-hidden border-r border-[#1a1a2e] scrollbar-hide py-4 group">
           <div className="px-3 mb-4">
-            <button
-              onClick={() => router.push("/")}
+            <Link
+              href="/"
               className="w-full flex items-center px-4 py-3 rounded text-left transition-colors duration-200 cursor-pointer text-indigo-400 hover:text-white hover:bg-indigo-500/20 overflow-hidden"
             >
               <ArrowLeft className="w-5 h-5 flex-shrink-0" strokeWidth={2} />
               <span className="truncate whitespace-nowrap ml-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-sm font-medium">Media Library</span>
-            </button>
+            </Link>
           </div>
           <div className="flex-1 space-y-1 px-3 mt-4">
             {topNavItems.map((item, idx) => (
