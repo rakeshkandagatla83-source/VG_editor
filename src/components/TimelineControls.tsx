@@ -104,9 +104,6 @@ export function TimelineControls() {
         </button>
 
         <div className="flex items-stretch rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-3 py-1.5 text-sm font-mono font-bold text-indigo-700 bg-indigo-50 border-r border-gray-200 flex items-center">
-            {formatTime(currentTime)}
-          </div>
           <div className="flex divide-x divide-gray-100">
             <button className="px-2.5 py-1.5 hover:bg-gray-50 text-gray-500 hover:text-gray-800 transition-colors flex items-center" title="Snapshot">
               <Camera className="w-3.5 h-3.5" />
