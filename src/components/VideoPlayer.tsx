@@ -23,6 +23,21 @@ export function VideoPlayer() {
     }
   }, [videoRef, setDuration]);
 
+  // 60fps smooth playback playhead updates
+  // Native onTimeUpdate only fires ~4 times per second, causing a choppy playhead.
+  useEffect(() => {
+    if (!isPlaying) return;
+    let rafId: number;
+    const updateLoop = () => {
+      if (videoRef.current) {
+        setCurrentTime(videoRef.current.currentTime);
+      }
+      rafId = requestAnimationFrame(updateLoop);
+    };
+    rafId = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying, setCurrentTime, videoRef]);
+
   return (
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center border border-gray-100 shadow-sm">
       <video 
