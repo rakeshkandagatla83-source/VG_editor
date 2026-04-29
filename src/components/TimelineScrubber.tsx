@@ -221,7 +221,35 @@ export function TimelineScrubber() {
     };
 
     const onError = () => {
-      if (!stopped) console.error("Thumb video failed:", videoUrl, video.error?.message);
+      if (stopped) return;
+      console.warn("Thumb video failed to load. Generating full mock filmstrip.");
+      // If the video refuses to load entirely (e.g. CORS block/Format error),
+      // we bypass the video and synchronously generate the mock thumbnails.
+      const vw = 160;
+      const vh = 90;
+      if (canvas) {
+        canvas.width = vw;
+        canvas.height = vh;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          const mockFrames: string[] = [];
+          for (let i = 0; i < NUM_THUMBNAILS; i++) {
+            const gradient = ctx.createLinearGradient(0, 0, vw, vh);
+            gradient.addColorStop(0, `hsl(${(i * 15) % 360}, 60%, 30%)`);
+            gradient.addColorStop(1, `hsl(${((i + 5) * 15) % 360}, 80%, 15%)`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, vw, vh);
+            
+            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.font = `bold ${vh / 3}px Inter, sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(`${i + 1}`, vw / 2, vh / 2);
+            mockFrames.push(canvas.toDataURL("image/jpeg", 0.5));
+          }
+          setThumbnails(mockFrames);
+        }
+      }
     };
 
     video.addEventListener("loadedmetadata", start);
@@ -229,8 +257,7 @@ export function TimelineScrubber() {
     video.addEventListener("error", onError);
 
     // Note: deliberately avoiding crossOrigin="anonymous" here so the video can 
-    // at least load and play. If drawing to canvas taints it due to CORS, 
-    // our try/catch above will gracefully fall back to mock thumbnails.
+    // at least load and play. If it fails entirely, onError will instantly mock it.
     video.src = videoUrl;
     video.load();
 
